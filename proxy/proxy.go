@@ -13,8 +13,6 @@ import (
 	"github.com/mcuadros/exmongodb/protocol"
 )
 
-const headerLen = 16
-
 var (
 	errRSChanged         = errors.New("proxy: replset config changed")
 	errNormalClose       = errors.New("proxy: normal close")
@@ -33,14 +31,12 @@ type Proxy struct {
 	// ClientIdleTimeout is how long until we'll consider a client connection
 	// idle and disconnect and release it's resources.
 	ClientIdleTimeout time.Duration
-	// MessageTimeout is used to determine the timeout for a single message to be
-	// proxied.
+	// MessageTimeout is used to determine the timeout for a single message.
 	MessageTimeout time.Duration
+	Middleware     Middleware
 
 	listener net.Listener
-
-	closed chan struct{}
-
+	closed   chan struct{}
 	sync.WaitGroup
 }
 
@@ -128,8 +124,8 @@ func (p *Proxy) clientServeLoop(c net.Conn) {
 		c.SetDeadline(deadline)
 		s.SetDeadline(deadline)
 
-		p.Log.Debugf("proxying message %s from %s for %s", h, c.RemoteAddr(), p)
-		if err := p.Handle(h, c, s); err != nil {
+		p.Log.Debugf("handling message %s from %s for %s", h, c.RemoteAddr(), p)
+		if err := p.Middleware.Handle(h, c, s); err != nil {
 			p.Log.Error(err)
 			return
 		}

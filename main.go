@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mcuadros/exmongodb/extensions"
+	"github.com/mcuadros/exmongodb/middlewares"
 	"github.com/mcuadros/exmongodb/proxy"
 
 	"github.com/facebookgo/gangliamr"
@@ -36,6 +36,7 @@ func Main() error {
 		MongoAddr:         "localhost:27017",
 		MessageTimeout:    *messageTimeout,
 		ClientIdleTimeout: *clientIdleTimeout,
+		Middleware:        &middlewares.ProxyMiddleware{},
 	}
 
 	var statsClient stats.HookClient
@@ -45,7 +46,6 @@ func Main() error {
 		&inject.Object{Value: &log},
 		&inject.Object{Value: &replicaSet},
 		&inject.Object{Value: &statsClient},
-		&inject.Object{Value: &extensions.DumpExtension{}},
 	)
 	if err != nil {
 		return err

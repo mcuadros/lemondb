@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facebookgo/mgotest"
+	"github.com/mcuadros/exmongodb/middlewares"
 
+	"github.com/facebookgo/mgotest"
 	. "gopkg.in/check.v1"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -197,6 +198,7 @@ func (s *ProxySuite) getNewProxy(mongoAddr string) *Proxy {
 		MongoAddr:         mongoAddr,
 		ClientIdleTimeout: 5 * time.Minute,
 		MessageTimeout:    5 * time.Second,
+		Middleware:        &middlewares.ProxyMiddleware{},
 	}
 }
 
