@@ -1,27 +1,200 @@
 package proxy
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
+	"github.com/facebookgo/mgotest"
+
 	. "gopkg.in/check.v1"
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) { TestingT(t) }
-
-type ProxySuite struct{}
-
-var _ = Suite(&ProxySuite{})
-
-func (s *ProxySuite) SetUpTest(c *C) {
+func Test(t *testing.T) {
+	Suite(&ProxySuite{testing: t})
+	TestingT(t)
 }
 
-func (s *ProxySuite) getNewProxy(url string) *Proxy {
+type ProxySuite struct {
+	testing *testing.T
+	server  *mgotest.Server
+	session *mgo.Session
+	proxy   *Proxy
+}
+
+func (s *ProxySuite) SetUpTest(c *C) {
+	s.server = mgotest.NewStartedServer(s.testing)
+	s.proxy = s.getNewProxy(s.server.URL())
+	s.proxy.Start()
+
+	s.session, _ = mgo.Dial(s.proxy.ProxyAddr)
+}
+
+func (s *ProxySuite) TestProxy_SimpleCRUD(c *C) {
+	collection := s.session.DB("test").C("coll1")
+	data := map[string]interface{}{
+		"_id":  1,
+		"name": "abc",
+	}
+	err := collection.Insert(data)
+	c.Assert(err, IsNil)
+
+	n, err := collection.Count()
+	c.Assert(err, IsNil)
+	c.Assert(n, Equals, 1)
+
+	result := make(map[string]interface{})
+	collection.Find(bson.M{"_id": 1}).One(&result)
+	c.Assert(result["name"], Equals, "abc")
+
+	err = collection.DropCollection()
+	c.Assert(n, Equals, 1)
+}
+
+func (s *ProxySuite) TestProxy_IDConstraint(c *C) {
+	collection := s.session.DB("test").C("coll1")
+	data := map[string]interface{}{
+		"_id":  1,
+		"name": "abc",
+	}
+
+	err := collection.Insert(data)
+	c.Assert(err, IsNil)
+
+	err = collection.Insert(data)
+	c.Assert(err, NotNil)
+}
+
+// inserting data voilating index clause on a separate connection should fail
+func (s *ProxySuite) TestProxy_EnsureIndex(c *C) {
+	collection := s.session.DB("test").C("coll1")
+	index := mgo.Index{
+		Key:        []string{"lastname", "firstname"},
+		Unique:     true,
+		DropDups:   true,
+		Background: true, // See notes.
+		Sparse:     true,
+	}
+	err := collection.EnsureIndex(index)
+	c.Assert(err, IsNil)
+
+	err = collection.Insert(
+		map[string]string{
+			"firstname": "harvey",
+			"lastname":  "dent",
+		},
+	)
+	c.Assert(err, IsNil)
+
+	err = collection.Insert(
+		map[string]string{
+			"firstname": "harvey",
+			"lastname":  "dent",
+		},
+	)
+	c.Assert(err, NotNil)
+}
+
+// inserting same data after dropping an index should work
+func (s *ProxySuite) TestProxy_DropIndex(c *C) {
+	collection := s.session.DB("test").C("coll1")
+	index := mgo.Index{
+		Key:        []string{"lastname", "firstname"},
+		Unique:     true,
+		DropDups:   true,
+		Background: true, // See notes.
+		Sparse:     true,
+	}
+	err := collection.EnsureIndex(index)
+	c.Assert(err, IsNil)
+
+	err = collection.Insert(
+		map[string]string{
+			"firstname": "harvey",
+			"lastname":  "dent",
+		},
+	)
+	c.Assert(err, IsNil)
+
+	err = collection.DropIndex("lastname", "firstname")
+	c.Assert(err, IsNil)
+
+	err = collection.Insert(
+		map[string]string{
+			"firstname": "harvey",
+			"lastname":  "dent",
+		},
+	)
+	c.Assert(err, IsNil)
+
+}
+
+func (s *ProxySuite) TestProxy_Remove(c *C) {
+	collection := s.session.DB("test").C("coll1")
+	err := collection.Insert(bson.M{"S": "hello", "I": 24})
+	c.Assert(err, IsNil)
+
+	err = collection.Remove(bson.M{"S": "hello", "I": 24})
+	c.Assert(err, IsNil)
+
+	var res []interface{}
+	collection.Find(bson.M{"S": "hello", "I": 24}).All(&res)
+	c.Assert(res, IsNil)
+
+	err = collection.Remove(bson.M{"S": "hello", "I": 24})
+	c.Assert(res, IsNil)
+}
+
+func (s *ProxySuite) TestProxy_Update(c *C) {
+	collection := s.session.DB("test").C("coll1")
+	err := collection.Insert(bson.M{"_id": "1234", "name": "Alfred"})
+	c.Assert(err, IsNil)
+
+	var result map[string]interface{}
+	collection.Find(nil).One(&result)
+	c.Assert(result["name"], Equals, "Alfred")
+
+	err = collection.Update(bson.M{"_id": "1234"}, bson.M{"name": "Jeeves"})
+	c.Assert(err, IsNil)
+
+	collection.Find(nil).One(&result)
+	c.Assert(result["name"], Equals, "Jeeves")
+
+	collection.Update(bson.M{"_id": "00000"}, bson.M{"name": "Jeeves"})
+	c.Assert(err, IsNil)
+}
+
+func (s *ProxySuite) TestProxy_GoingAwayAndReturning(c *C) {
+	collection := s.session.DB("test").C("coll1")
+	err := collection.Insert(bson.M{"value": 1})
+	c.Assert(err, IsNil)
+
+	s.server.Stop()
+	s.server.Start()
+
+	// For now we can only gurantee that eventually things will work again. In an
+	// ideal world the very first client connection after mongo returns should
+	// work, and we shouldn't need a loop here.
+	for {
+		collection = s.session.Copy().DB("test").C("coll1")
+		if err := collection.Insert(bson.M{"value": 3}); err == nil {
+			break
+		}
+	}
+}
+
+func (s *ProxySuite) TearDownTest(c *C) {
+	s.session.Close()
+	s.proxy.Stop()
+	s.server.Stop()
+}
+
+func (s *ProxySuite) getNewProxy(mongoAddr string) *Proxy {
 	return &Proxy{
-		ProxyAddr:           fmt.Sprintf("%:2000", url),
-		MongoAddr:           fmt.Sprintf("%:3000", url),
+		Log:                 nopLogger{},
+		ProxyAddr:           "localhost:2000",
+		MongoAddr:           mongoAddr,
 		MaxConnections:      5,
 		MinIdleConnections:  5,
 		ServerIdleTimeout:   5 * time.Minute,
