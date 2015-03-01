@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"encoding/json"
+	"io"
 
 	"gopkg.in/mgo.v2/bson"
 )
@@ -18,23 +19,23 @@ func (c OpCode) String() string {
 	switch c {
 	default:
 		return "UNKNOWN"
-	case OpReply:
+	case OpReplyCode:
 		return "REPLY"
-	case OpMessage:
+	case OpMessageCode:
 		return "MESSAGE"
-	case OpUpdate:
+	case OpUpdateCode:
 		return "UPDATE"
-	case OpInsert:
+	case OpInsertCode:
 		return "INSERT"
 	case Reserved:
 		return "RESERVED"
 	case OpQueryCode:
 		return "QUERY"
-	case OpGetMore:
+	case OpGetMoreCode:
 		return "GET_MORE"
-	case OpDelete:
+	case OpDeleteCode:
 		return "DELETE"
-	case OpKillCursors:
+	case OpKillCursorsCode:
 		return "KILL_CURSORS"
 	}
 }
@@ -42,27 +43,31 @@ func (c OpCode) String() string {
 // IsMutation tells us if the operation will mutate data. These operations can
 // be followed up by a getLastErr operation.
 func (c OpCode) IsMutation() bool {
-	return c == OpInsert || c == OpUpdate || c == OpDelete
+	return c == OpInsertCode || c == OpUpdateCode || c == OpDeleteCode
 }
 
 // HasResponse tells us if the operation will have a response from the server.
 func (c OpCode) HasResponse() bool {
-	return c == OpQueryCode || c == OpGetMore
+	return c == OpQueryCode || c == OpGetMoreCode
 }
 
 // The full set of known request op codes:
 // http://docs.mongodb.org/meta-driver/latest/legacy/mongodb-wire-protocol/#request-opcodes
 const (
-	OpReply       = OpCode(1)
-	OpMessage     = OpCode(1000)
-	OpUpdate      = OpCode(2001)
-	OpInsert      = OpCode(2002)
-	Reserved      = OpCode(2003)
-	OpQueryCode   = OpCode(2004)
-	OpGetMore     = OpCode(2005)
-	OpDelete      = OpCode(2006)
-	OpKillCursors = OpCode(2007)
+	OpReplyCode       = OpCode(1)
+	OpMessageCode     = OpCode(1000)
+	OpUpdateCode      = OpCode(2001)
+	OpInsertCode      = OpCode(2002)
+	Reserved          = OpCode(2003)
+	OpQueryCode       = OpCode(2004)
+	OpGetMoreCode     = OpCode(2005)
+	OpDeleteCode      = OpCode(2006)
+	OpKillCursorsCode = OpCode(2007)
 )
+
+type Message interface {
+	WriteTo(w io.Writer) error
+}
 
 type Document []byte
 

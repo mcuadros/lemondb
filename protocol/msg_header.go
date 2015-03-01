@@ -42,7 +42,6 @@ func ReadMsgHeader(r io.Reader) (*MsgHeader, error) {
 	}
 
 	m.OpCode = OpCode(op)
-
 	return m, nil
 }
 
