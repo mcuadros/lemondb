@@ -192,16 +192,11 @@ func (s *ProxySuite) TearDownTest(c *C) {
 
 func (s *ProxySuite) getNewProxy(mongoAddr string) *Proxy {
 	return &Proxy{
-		Log:                 nopLogger{},
-		ProxyAddr:           "localhost:2000",
-		MongoAddr:           mongoAddr,
-		MaxConnections:      5,
-		MinIdleConnections:  5,
-		ServerIdleTimeout:   5 * time.Minute,
-		ServerClosePoolSize: 5,
-		ClientIdleTimeout:   5 * time.Minute,
-		GetLastErrorTimeout: 5 * time.Minute,
-		MessageTimeout:      5 * time.Second,
+		Log:               nopLogger{},
+		ProxyAddr:         "localhost:2000",
+		MongoAddr:         mongoAddr,
+		ClientIdleTimeout: 5 * time.Minute,
+		MessageTimeout:    5 * time.Second,
 	}
 }
 

@@ -27,22 +27,15 @@ func main() {
 func Main() error {
 	messageTimeout := flag.Duration("message_timeout", 2*time.Minute, "timeout for one message to be proxied")
 	clientIdleTimeout := flag.Duration("client_idle_timeout", 60*time.Minute, "idle timeout for client connections")
-	getLastErrorTimeout := flag.Duration("get_last_error_timeout", time.Minute, "timeout for getLastError pinning")
-	maxConnections := flag.Uint("max_connections", 100, "maximum number of connections per mongo")
 
 	flag.Parse()
 
 	replicaSet := proxy.Proxy{
-		Log:                 &stdLogger{},
-		ProxyAddr:           "localhost:7000",
-		MongoAddr:           "localhost:27017",
-		MessageTimeout:      *messageTimeout,
-		ClientIdleTimeout:   *clientIdleTimeout,
-		GetLastErrorTimeout: *getLastErrorTimeout,
-		MaxConnections:      *maxConnections,
-		MinIdleConnections:  5,
-		ServerIdleTimeout:   5 * time.Minute,
-		ServerClosePoolSize: 5,
+		Log:               &stdLogger{},
+		ProxyAddr:         "localhost:7000",
+		MongoAddr:         "localhost:27017",
+		MessageTimeout:    *messageTimeout,
+		ClientIdleTimeout: *clientIdleTimeout,
 	}
 
 	var statsClient stats.HookClient

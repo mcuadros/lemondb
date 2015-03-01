@@ -11,17 +11,14 @@ import (
 	"time"
 
 	"github.com/mcuadros/exmongodb/protocol"
-
-	"github.com/facebookgo/rpool"
 )
 
 const headerLen = 16
 
 var (
-	errRSChanged          = errors.New("proxy: replset config changed")
-	errZeroMaxConnections = errors.New("proxy: MaxConnections cannot be 0")
-	errNormalClose        = errors.New("dvara: normal close")
-	errClientReadTimeout  = errors.New("dvara: client read timeout")
+	errRSChanged         = errors.New("proxy: replset config changed")
+	errNormalClose       = errors.New("proxy: normal close")
+	errClientReadTimeout = errors.New("proxy: client read timeout")
 
 	timeInPast = time.Now()
 )
@@ -33,20 +30,6 @@ type Proxy struct {
 	ProxyAddr string
 	// Address for destination Mongo server
 	MongoAddr string
-	// Maximum number of connections that will be established to each mongo node.
-	MaxConnections uint
-	// MinIdleConnections is the number of idle server connections we'll keep
-	// around.
-	MinIdleConnections uint
-	// ServerClosePoolSize is the number of goroutines that will handle closing
-	// server connections.
-	ServerClosePoolSize uint
-	// ServerIdleTimeout is the duration after which a server connection will be
-	// considered idle.
-	ServerIdleTimeout time.Duration
-	// GetLastErrorTimeout is how long we'll hold on to an acquired server
-	// connection expecting a possibly getLastError call.
-	GetLastErrorTimeout time.Duration
 	// ClientIdleTimeout is how long until we'll consider a client connection
 	// idle and disconnect and release it's resources.
 	ClientIdleTimeout time.Duration
@@ -56,8 +39,7 @@ type Proxy struct {
 
 	listener net.Listener
 
-	closed     chan struct{}
-	serverPool rpool.Pool
+	closed chan struct{}
 
 	sync.WaitGroup
 }
@@ -69,23 +51,11 @@ func (p *Proxy) String() string {
 
 // Start the proxy.
 func (p *Proxy) Start() error {
-	if p.MaxConnections == 0 {
-		return errZeroMaxConnections
-	}
-
 	if err := p.createListener(); err != nil {
 		return err
 	}
 
 	p.closed = make(chan struct{})
-	p.serverPool = rpool.Pool{
-		New:               p.newServerConn,
-		CloseErrorHandler: p.serverCloseErrorHandler,
-		Max:               p.MaxConnections,
-		MinIdle:           p.MinIdleConnections,
-		IdleTimeout:       p.ServerIdleTimeout,
-		ClosePoolSize:     p.ServerClosePoolSize,
-	}
 
 	go p.clientAcceptLoop()
 
@@ -126,9 +96,20 @@ func (p *Proxy) clientServeLoop(c net.Conn) {
 	c = teeIf(fmt.Sprintf("client %s <=> %s", c.RemoteAddr(), p), c)
 	p.Log.Infof("client %s connected to %s", c.RemoteAddr(), p)
 
+	s, err := p.newServerConn()
+	p.Log.Infof("server %s connected to %s", s.RemoteAddr(), p)
+	if err != nil {
+		p.Log.Error(err)
+	}
+
 	defer func() {
 		p.Log.Infof("client %s disconnected from %s", c.RemoteAddr(), p)
 		p.Done()
+
+		if err := s.Close(); err != nil {
+			p.Log.Error(err)
+		}
+
 		if err := c.Close(); err != nil {
 			p.Log.Error(err)
 		}
@@ -143,66 +124,17 @@ func (p *Proxy) clientServeLoop(c net.Conn) {
 			return
 		}
 
-		serverConn, err := p.getServerConn()
-		if err != nil {
-			if err != errNormalClose {
-				p.Log.Error(err)
-			}
+		deadline := time.Now().Add(p.MessageTimeout)
+		c.SetDeadline(deadline)
+		s.SetDeadline(deadline)
+
+		p.Log.Debugf("proxying message %s from %s for %s", h, c.RemoteAddr(), p)
+		if err := p.Handle(h, c, s); err != nil {
+			p.Log.Error(err)
 			return
 		}
-
-		for {
-			deadline := time.Now().Add(p.MessageTimeout)
-			c.SetDeadline(deadline)
-			serverConn.SetDeadline(deadline)
-
-			p.Log.Debugf("proxying message %s from %s for %s", h, c.RemoteAddr(), p)
-			if err := p.Handle(h, c, serverConn); err != nil {
-				p.serverPool.Discard(serverConn)
-				p.Log.Error(err)
-
-				//if err == errRSChanged {
-				//	go p.ReplicaSet.Restart()
-				//}
-
-				return
-			}
-
-			if !h.OpCode.IsMutation() {
-				break
-			}
-
-			// If the operation we just performed was a mutation, we always make the
-			// follow up request on the same server because it's possibly a getLastErr
-			// call which expects this behavior.
-			h, err = p.gleClientReadHeader(c)
-			if err != nil {
-				// Client did not make _any_ query within the GetLastErrorTimeout.
-				// Return the server to the pool and wait go back to outer loop.
-				if err == errClientReadTimeout {
-					break
-				}
-				// Prevent noise of normal client disconnects, but log if anything else.
-				if err != errNormalClose {
-					p.Log.Error(err)
-				}
-				// We need to return our server to the pool (it's still good as far
-				// as we know).
-				p.serverPool.Release(serverConn)
-				return
-			}
-		}
-		p.serverPool.Release(serverConn)
 	}
-}
 
-// getServerConn gets a server connection from the pool.
-func (p *Proxy) getServerConn() (net.Conn, error) {
-	c, err := p.serverPool.Acquire()
-	if err != nil {
-		return nil, err
-	}
-	return c.(net.Conn), nil
 }
 
 // We wait for upto ClientIdleTimeout in MessageTimeout increments and keep
@@ -210,10 +142,6 @@ func (p *Proxy) getServerConn() (net.Conn, error) {
 // wait for MessageTimeout when closing even when we're idling.
 func (p *Proxy) idleClientReadHeader(c net.Conn) (*protocol.MsgHeader, error) {
 	return p.clientReadHeader(c, p.ClientIdleTimeout)
-}
-
-func (p *Proxy) gleClientReadHeader(c net.Conn) (*protocol.MsgHeader, error) {
-	return p.clientReadHeader(c, p.GetLastErrorTimeout)
 }
 
 func (p *Proxy) clientReadHeader(c net.Conn, timeout time.Duration) (*protocol.MsgHeader, error) {
@@ -277,34 +205,13 @@ func (p *Proxy) stop(hard bool) error {
 	if !hard {
 		p.Wait()
 	}
-	p.serverPool.Close()
 	return nil
-}
-
-func (p *Proxy) checkRSChanged() bool {
-	return false
-	/*
-		addrs := p.ReplicaSet.lastState.Addrs()
-		r, err := p.ReplicaSet.ReplicaSetStateCreator.FromAddrs(addrs)
-		if err != nil {
-			p.Log.Errorf("all nodes possibly down?: %s", err)
-			return true
-		}
-
-		if err := r.AssertEqual(p.ReplicaSet.lastState); err != nil {
-			p.Log.Error(err)
-			go p.ReplicaSet.Restart()
-			return true
-		}
-
-		return false
-	*/
 }
 
 // Open up a new connection to the server. Retry 7 times, doubling the sleep
 // each time. This means we'll a total of 12.75 seconds with the last wait
 // being 6.4 seconds.
-func (p *Proxy) newServerConn() (io.Closer, error) {
+func (p *Proxy) newServerConn() (net.Conn, error) {
 	retrySleep := 50 * time.Millisecond
 	for retryCount := 7; retryCount > 0; retryCount-- {
 		c, err := net.Dial("tcp", p.MongoAddr)
@@ -313,18 +220,11 @@ func (p *Proxy) newServerConn() (io.Closer, error) {
 		}
 		p.Log.Error(err)
 
-		// abort if rs changed
-		if p.checkRSChanged() {
-			return nil, errNormalClose
-		}
 		time.Sleep(retrySleep)
 		retrySleep = retrySleep * 2
 	}
-	return nil, fmt.Errorf("could not connect to %s", p.MongoAddr)
-}
 
-func (p *Proxy) serverCloseErrorHandler(err error) {
-	p.Log.Error(err)
+	return nil, fmt.Errorf("could not connect to %s", p.MongoAddr)
 }
 
 var teeIfEnable = os.Getenv("MONGOPROXY_TEE") == "1"
