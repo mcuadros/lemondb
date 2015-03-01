@@ -1,5 +1,11 @@
 package protocol
 
+import (
+	"encoding/json"
+
+	"gopkg.in/mgo.v2/bson"
+)
+
 // Look at http://docs.mongodb.org/meta-driver/latest/legacy/mongodb-wire-protocol/ for the protocol.
 
 // OpCode allow identifying the type of operation:
@@ -22,7 +28,7 @@ func (c OpCode) String() string {
 		return "INSERT"
 	case Reserved:
 		return "RESERVED"
-	case OpQuery:
+	case OpQueryCode:
 		return "QUERY"
 	case OpGetMore:
 		return "GET_MORE"
@@ -41,7 +47,7 @@ func (c OpCode) IsMutation() bool {
 
 // HasResponse tells us if the operation will have a response from the server.
 func (c OpCode) HasResponse() bool {
-	return c == OpQuery || c == OpGetMore
+	return c == OpQueryCode || c == OpGetMore
 }
 
 // The full set of known request op codes:
@@ -52,8 +58,35 @@ const (
 	OpUpdate      = OpCode(2001)
 	OpInsert      = OpCode(2002)
 	Reserved      = OpCode(2003)
-	OpQuery       = OpCode(2004)
+	OpQueryCode   = OpCode(2004)
 	OpGetMore     = OpCode(2005)
 	OpDelete      = OpCode(2006)
 	OpKillCursors = OpCode(2007)
 )
+
+type Document []byte
+
+func (s Document) String() string {
+	b, _ := s.ToBSON()
+	j, _ := json.Marshal(b.Map())
+	return string(j)
+}
+
+func (s Document) ToBSON() (bson.D, error) {
+	var q bson.D
+	if err := bson.Unmarshal(s, &q); err != nil {
+		return nil, err
+	}
+
+	return q, nil
+}
+
+type CSString []byte
+
+func (s CSString) String() string {
+	if len(s) == 0 {
+		return ""
+	}
+
+	return string(s[:len(s)-1])
+}

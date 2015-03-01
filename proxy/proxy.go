@@ -112,7 +112,7 @@ func (p *Proxy) clientServeLoop(c net.Conn) {
 	}()
 
 	for {
-		h, err := p.idleClientReadHeader(c)
+		h, err := p.idleClientReadMsgHeader(c)
 		if err != nil {
 			if err != errNormalClose {
 				p.Log.Error(err)
@@ -136,11 +136,11 @@ func (p *Proxy) clientServeLoop(c net.Conn) {
 // We wait for upto ClientIdleTimeout in MessageTimeout increments and keep
 // checking if we're waiting to be closed. This ensures that at worse we
 // wait for MessageTimeout when closing even when we're idling.
-func (p *Proxy) idleClientReadHeader(c net.Conn) (*protocol.MsgHeader, error) {
-	return p.clientReadHeader(c, p.ClientIdleTimeout)
+func (p *Proxy) idleClientReadMsgHeader(c net.Conn) (*protocol.MsgHeader, error) {
+	return p.clientReadMsgHeader(c, p.ClientIdleTimeout)
 }
 
-func (p *Proxy) clientReadHeader(c net.Conn, timeout time.Duration) (*protocol.MsgHeader, error) {
+func (p *Proxy) clientReadMsgHeader(c net.Conn, timeout time.Duration) (*protocol.MsgHeader, error) {
 	type headerError struct {
 		header *protocol.MsgHeader
 		error  error
@@ -149,7 +149,7 @@ func (p *Proxy) clientReadHeader(c net.Conn, timeout time.Duration) (*protocol.M
 
 	c.SetReadDeadline(time.Now().Add(timeout))
 	go func() {
-		h, err := protocol.ReadHeader(c)
+		h, err := protocol.ReadMsgHeader(c)
 		resChan <- headerError{header: h, error: err}
 	}()
 

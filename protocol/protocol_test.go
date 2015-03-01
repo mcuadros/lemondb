@@ -15,7 +15,7 @@ func (s *ProtocolSuite) TestOpCode_Strings(c *C) {
 		{OpUpdate, "UPDATE"},
 		{OpInsert, "INSERT"},
 		{Reserved, "RESERVED"},
-		{OpQuery, "QUERY"},
+		{OpQueryCode, "QUERY"},
 		{OpGetMore, "GET_MORE"},
 		{OpDelete, "DELETE"},
 		{OpKillCursors, "KILL_CURSORS"},

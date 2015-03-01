@@ -1,14 +1,11 @@
 package protocol
 
 import (
-	"errors"
 	"fmt"
 	"io"
 )
 
 const HeaderLen = 16
-
-var errWrite = errors.New("incorrect number of bytes written")
 
 // MsgHeader is the mongo MsgHeader
 type MsgHeader struct {
@@ -22,38 +19,60 @@ type MsgHeader struct {
 	OpCode OpCode
 }
 
-// ToWire converts the MsgHeader to the wire protocol
-func (m MsgHeader) ToWire() []byte {
-	var d [HeaderLen]byte
-	b := d[:]
-	SetInt32(b, 0, m.MessageLength)
-	SetInt32(b, 4, m.RequestID)
-	SetInt32(b, 8, m.ResponseTo)
-	SetInt32(b, 12, int32(m.OpCode))
-	return b
-}
+func ReadMsgHeader(r io.Reader) (*MsgHeader, error) {
+	var err error
 
-// FromWire reads the wirebytes into this object
-func (m *MsgHeader) FromWire(b []byte) {
-	m.MessageLength = GetInt32(b, 0)
-	m.RequestID = GetInt32(b, 4)
-	m.ResponseTo = GetInt32(b, 8)
-	m.OpCode = OpCode(GetInt32(b, 12))
+	m := &MsgHeader{}
+
+	if err = readInt32(r, &m.MessageLength); err != nil {
+		return nil, err
+	}
+
+	if err = readInt32(r, &m.RequestID); err != nil {
+		return nil, err
+	}
+
+	if err = readInt32(r, &m.ResponseTo); err != nil {
+		return nil, err
+	}
+
+	var op int32
+	if err = readInt32(r, &op); err != nil {
+		return nil, err
+	}
+
+	m.OpCode = OpCode(op)
+
+	return m, nil
 }
 
 func (m *MsgHeader) WriteTo(w io.Writer) error {
-	b := m.ToWire()
-	n, err := w.Write(b)
-	if err != nil {
+	if err := m.toWire(w); err != nil {
 		return err
 	}
-	if n != len(b) {
-		return errWrite
-	}
+
 	return nil
 }
 
-// String returns a string representation of the message header. Useful for debugging.
+// ToWire converts the MsgHeader to the wire protocol
+func (m MsgHeader) toWire(w io.Writer) error {
+	if err := writeInt32(w, m.MessageLength); err != nil {
+		return err
+	}
+	if err := writeInt32(w, m.RequestID); err != nil {
+		return err
+	}
+	if err := writeInt32(w, m.ResponseTo); err != nil {
+		return err
+	}
+	if err := writeInt32(w, int32(m.OpCode)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a string representation of the message header.
 func (m *MsgHeader) String() string {
 	return fmt.Sprintf(
 		"opCode:%s (%d) msgLen:%d reqID:%d respID:%d",
