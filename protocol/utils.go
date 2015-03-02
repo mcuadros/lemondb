@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"io"
 )
@@ -20,21 +22,22 @@ func CopyMessage(w io.Writer, r io.Reader) error {
 	return err
 }
 
-// readDocument read an entire BSON document. This document can be used with
-// bson.Unmarshal.
 func readDocument(r io.Reader, d *Document) error {
-	var sizeRaw [4]byte
-	if _, err := io.ReadFull(r, sizeRaw[:]); err != nil {
-		return err
-	}
-	size := getInt32(sizeRaw[:], 0)
-	doc := make([]byte, size)
-	SetInt32(doc, 0, size)
-	if _, err := io.ReadFull(r, doc[4:]); err != nil {
+	var size int32
+	if err := readInt32(r, &size); err != nil {
 		return err
 	}
 
-	*d = doc
+	var w bytes.Buffer
+	if err := writeInt32(&w, size); err != nil {
+		return err
+	}
+
+	if _, err := io.CopyN(&w, r, int64(size-4)); err != nil {
+		return err
+	}
+
+	*d = w.Bytes()
 	return nil
 }
 
@@ -58,45 +61,18 @@ func readCString(r io.Reader, s *CSString) error {
 	}
 }
 
-// all data in the MongoDB wire protocol is little-endian.
-// all the read/write functions below are little-endian.
 func readInt32(r io.Reader, i *int32) error {
-	b := make([]byte, 4)
-	if _, err := io.ReadFull(r, b); err != nil {
-		return err
-	}
+	return binary.Read(r, binary.LittleEndian, i)
+}
 
-	*i = (int32(b[0])) |
-		(int32(b[1]) << 8) |
-		(int32(b[2]) << 16) |
-		(int32(b[3]) << 24)
-
-	return nil
+func readInt64(r io.Reader, i *int64) error {
+	return binary.Read(r, binary.LittleEndian, i)
 }
 
 func writeInt32(w io.Writer, i int32) error {
-	b := [4]byte{byte(i), byte(i >> 8), byte(i >> 16), byte(i >> 24)}
-	if i, err := w.Write(b[:]); err != nil {
-		return err
-	} else if i != 4 {
-		return errWrite
-	}
-
-	return nil
+	return binary.Write(w, binary.LittleEndian, i)
 }
 
-// all data in the MongoDB wire protocol is little-endian.
-// all the read/write functions below are little-endian.
-func getInt32(b []byte, pos int) int32 {
-	return (int32(b[pos+0])) |
-		(int32(b[pos+1]) << 8) |
-		(int32(b[pos+2]) << 16) |
-		(int32(b[pos+3]) << 24)
-}
-
-func SetInt32(b []byte, pos int, i int32) {
-	b[pos] = byte(i)
-	b[pos+1] = byte(i >> 8)
-	b[pos+2] = byte(i >> 16)
-	b[pos+3] = byte(i >> 24)
+func writeInt64(w io.Writer, i int64) error {
+	return binary.Write(w, binary.LittleEndian, i)
 }

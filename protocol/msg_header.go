@@ -11,7 +11,7 @@ const HeaderLen = 16
 type MsgHeader struct {
 	// MessageLength is the total message size, including this header
 	MessageLength int32
-	// RequestID is the identifier for this miessage
+	// RequestID is the identifier for this message
 	RequestID int32
 	// ResponseTo is the RequestID of the message being responded to. used in DB responses
 	ResponseTo int32
@@ -62,6 +62,10 @@ func (m *MsgHeader) WriteTo(w io.Writer) error {
 		return err
 	}
 
+	if _, err := w.Write(m.Message); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -77,10 +81,6 @@ func (m MsgHeader) toWire(w io.Writer) error {
 		return err
 	}
 	if err := writeInt32(w, int32(m.OpCode)); err != nil {
-		return err
-	}
-
-	if _, err := w.Write(m.Message); err != nil {
 		return err
 	}
 

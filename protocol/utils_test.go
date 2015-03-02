@@ -49,21 +49,6 @@ func (s *ProtocolSuite) TestCopyMessageFromWriteError(c *C) {
 
 }
 
-func (s *ProtocolSuite) TestCopyMessageFromWriteLengthError(c *C) {
-	var r bytes.Buffer
-	msg := MsgHeader{}
-	msg.toWire(&r)
-
-	w := testWriter{
-		write: func(b []byte) (int, error) {
-			return 0, nil
-		},
-	}
-
-	err := CopyMessage(w, &r)
-	c.Assert(err, Equals, errWrite)
-}
-
 func (s *ProtocolSuite) TestReadDocumentEmpty(c *C) {
 	var doc Document
 	err := readDocument(bytes.NewReader([]byte{}), &doc)
@@ -77,7 +62,12 @@ func (s *ProtocolSuite) TestReadDocumentPartial(c *C) {
 		read: func(b []byte) (int, error) {
 			if first {
 				first = false
-				SetInt32(b, 0, 5)
+				i := 5
+				b[0] = byte(i)
+				b[1] = byte(i >> 8)
+				b[2] = byte(i >> 16)
+				b[3] = byte(i >> 24)
+
 				return 4, nil
 			}
 			return 0, io.EOF

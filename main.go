@@ -36,7 +36,9 @@ func Main() error {
 		MongoAddr:         "localhost:27017",
 		MessageTimeout:    *messageTimeout,
 		ClientIdleTimeout: *clientIdleTimeout,
-		Middleware:        &middlewares.ProxyMiddleware{},
+		Middleware: &middlewares.SchemaMiddleware{
+			&middlewares.ProxyMiddleware{},
+		},
 	}
 
 	var statsClient stats.HookClient
