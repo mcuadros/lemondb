@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mcuadros/exmongodb/protocol"
+	"github.com/mcuadros/lemondb/protocol"
 )
 
 var (

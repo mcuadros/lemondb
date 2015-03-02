@@ -1,4 +1,4 @@
-exmongodb is based on the great work of Naitik Shah in dvara
+lemondb is based on the great work of Naitik Shah in dvara
 https://github.com/facebookgo/dvara a connection pooling proxy for mongodb.
 
 --------------------------------------------------------------------------------

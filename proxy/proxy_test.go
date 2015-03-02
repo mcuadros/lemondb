@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mcuadros/exmongodb/middlewares"
+	"github.com/mcuadros/lemondb/middlewares"
 
 	"github.com/facebookgo/mgotest"
 	. "gopkg.in/check.v1"

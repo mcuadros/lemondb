@@ -3,7 +3,7 @@ package proxy
 import (
 	"io"
 
-	"github.com/mcuadros/exmongodb/protocol"
+	"github.com/mcuadros/lemondb/protocol"
 )
 
 type Middleware interface {

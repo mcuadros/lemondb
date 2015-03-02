@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mcuadros/exmongodb/middlewares"
-	"github.com/mcuadros/exmongodb/proxy"
+	"github.com/mcuadros/lemondb/middlewares"
+	"github.com/mcuadros/lemondb/proxy"
 
 	"github.com/facebookgo/gangliamr"
 	"github.com/facebookgo/inject"

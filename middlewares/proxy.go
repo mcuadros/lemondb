@@ -3,7 +3,7 @@ package middlewares
 import (
 	"io"
 
-	"github.com/mcuadros/exmongodb/protocol"
+	"github.com/mcuadros/lemondb/protocol"
 )
 
 type ProxyMiddleware struct{}
