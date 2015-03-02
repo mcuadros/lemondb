@@ -25,7 +25,6 @@ type OpQuery struct {
 
 func ReadOpQuery(h *MsgHeader, r io.Reader) (*OpQuery, error) {
 	var err error
-
 	op := &OpQuery{MsgHeader: h}
 	if err = readInt32(r, &op.Flags); err != nil {
 		return nil, err
@@ -81,6 +80,10 @@ func (op *OpQuery) toWire(w io.Writer) error {
 	}
 
 	return nil
+}
+
+func (op *OpQuery) GetOpCode() OpCode {
+	return OpQueryCode
 }
 
 // String returns a string representation of the message header.

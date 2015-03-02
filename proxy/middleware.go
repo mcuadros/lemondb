@@ -7,5 +7,5 @@ import (
 )
 
 type Middleware interface {
-	Handle(h *protocol.MsgHeader, c io.ReadWriter, s io.ReadWriter) error
+	Handle(m protocol.Message, c io.ReadWriter, s io.ReadWriter) error
 }

@@ -67,6 +67,8 @@ const (
 
 type Message interface {
 	WriteTo(w io.Writer) error
+	GetOpCode() OpCode
+	String() string
 }
 
 type Document []byte

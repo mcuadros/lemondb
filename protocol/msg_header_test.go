@@ -17,6 +17,8 @@ var _ = Suite(&ProtocolSuite{})
 
 func (s *ProtocolSuite) TestReadMsgHeader(c *C) {
 	fixture, _ := hex.DecodeString("880000009900000000000000d4070000")
+	fixture = append(fixture, bytes.Repeat([]byte("0"), 136)...)
+
 	r := bytes.NewReader(fixture)
 
 	h, err := ReadMsgHeader(r)

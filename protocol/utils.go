@@ -17,7 +17,6 @@ func CopyMessage(w io.Writer, r io.Reader) error {
 		return err
 	}
 
-	_, err = io.CopyN(w, r, int64(h.MessageLength-HeaderLen))
 	return err
 }
 
@@ -63,7 +62,7 @@ func readCString(r io.Reader, s *CSString) error {
 // all the read/write functions below are little-endian.
 func readInt32(r io.Reader, i *int32) error {
 	b := make([]byte, 4)
-	if _, err := r.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return err
 	}
 

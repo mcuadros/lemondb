@@ -17,11 +17,12 @@ type MsgHeader struct {
 	ResponseTo int32
 	// OpCode is the request type, see consts above.
 	OpCode OpCode
+	// Message raw content
+	Message []byte
 }
 
 func ReadMsgHeader(r io.Reader) (*MsgHeader, error) {
 	var err error
-
 	m := &MsgHeader{}
 
 	if err = readInt32(r, &m.MessageLength); err != nil {
@@ -42,6 +43,17 @@ func ReadMsgHeader(r io.Reader) (*MsgHeader, error) {
 	}
 
 	m.OpCode = OpCode(op)
+
+	l := m.MessageLength - HeaderLen
+	if l > 0 {
+		b := make([]byte, l)
+		if _, err := io.ReadFull(r, b); err != nil {
+			return nil, err
+		}
+
+		m.Message = b
+	}
+
 	return m, nil
 }
 
@@ -68,7 +80,15 @@ func (m MsgHeader) toWire(w io.Writer) error {
 		return err
 	}
 
+	if _, err := w.Write(m.Message); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func (m *MsgHeader) GetOpCode() OpCode {
+	return m.OpCode
 }
 
 // String returns a string representation of the message header.
