@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 )
@@ -58,7 +59,7 @@ func ReadMsgHeader(r io.Reader) (*MsgHeader, error) {
 }
 
 func (m *MsgHeader) WriteTo(w io.Writer) error {
-	if err := m.toWire(w); err != nil {
+	if _, err := w.Write(m.toWire()); err != nil {
 		return err
 	}
 
@@ -70,25 +71,23 @@ func (m *MsgHeader) WriteTo(w io.Writer) error {
 }
 
 // ToWire converts the MsgHeader to the wire protocol
-func (m MsgHeader) toWire(w io.Writer) error {
-	if err := writeInt32(w, m.MessageLength); err != nil {
-		return err
-	}
-	if err := writeInt32(w, m.RequestID); err != nil {
-		return err
-	}
-	if err := writeInt32(w, m.ResponseTo); err != nil {
-		return err
-	}
-	if err := writeInt32(w, int32(m.OpCode)); err != nil {
-		return err
-	}
+func (m MsgHeader) toWire() []byte {
+	w := bytes.NewBuffer([]byte{})
 
-	return nil
+	writeInt32(w, m.MessageLength)
+	writeInt32(w, m.RequestID)
+	writeInt32(w, m.ResponseTo)
+	writeInt32(w, int32(m.OpCode))
+
+	return w.Bytes()
 }
 
 func (m *MsgHeader) GetOpCode() OpCode {
 	return m.OpCode
+}
+
+func (m *MsgHeader) GetMsgHeader() *MsgHeader {
+	return m
 }
 
 // String returns a string representation of the message header.

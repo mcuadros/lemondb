@@ -9,12 +9,11 @@ import (
 )
 
 func (s *ProtocolSuite) TestCopyMessageWithEmptyMessage(c *C) {
-	var b bytes.Buffer
 	msg := MsgHeader{}
-	msg.toWire(&b)
+	b := bytes.NewBuffer(msg.toWire())
 
 	var w bytes.Buffer
-	err := CopyMessage(&w, &b)
+	err := CopyMessage(&w, b)
 	c.Assert(err, IsNil)
 	c.Assert(w.Bytes(), HasLen, 16)
 }
@@ -33,9 +32,8 @@ func (s *ProtocolSuite) TestCopyMessageFromReadError(c *C) {
 }
 
 func (s *ProtocolSuite) TestCopyMessageFromWriteError(c *C) {
-	var r bytes.Buffer
 	msg := MsgHeader{}
-	msg.toWire(&r)
+	r := bytes.NewBuffer(msg.toWire())
 
 	expectedErr := errors.New("foo")
 	w := testWriter{
@@ -44,7 +42,7 @@ func (s *ProtocolSuite) TestCopyMessageFromWriteError(c *C) {
 		},
 	}
 
-	err := CopyMessage(w, &r)
+	err := CopyMessage(w, r)
 	c.Assert(err, Equals, expectedErr)
 
 }

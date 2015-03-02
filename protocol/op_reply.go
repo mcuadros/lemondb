@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"bytes"
+	"gopkg.in/mgo.v2/bson"
 	"io"
 )
 
@@ -18,6 +20,20 @@ type OpReply struct {
 	NumberReturned int32
 	// Documents
 	Documents []Document
+}
+
+func NewOpReplay(req Message, requestID int32) *OpReply {
+	reqh := req.GetMsgHeader()
+	h := &MsgHeader{
+		RequestID:  requestID,
+		ResponseTo: reqh.RequestID,
+		OpCode:     OpReplyCode,
+	}
+
+	return &OpReply{
+		MsgHeader: h,
+		Documents: make([]Document, 0),
+	}
 }
 
 func ReadOpReply(h *MsgHeader, r io.Reader) (*OpReply, error) {
@@ -52,12 +68,26 @@ func ReadOpReply(h *MsgHeader, r io.Reader) (*OpReply, error) {
 	return op, nil
 }
 
-func (op *OpReply) WriteTo(w io.Writer) error {
-	if err := op.MsgHeader.toWire(w); err != nil {
+func (op *OpReply) AddDocument(d interface{}) error {
+	op.NumberReturned++
+	blob, err := bson.Marshal(d)
+	if err != nil {
 		return err
 	}
 
-	if err := op.toWire(w); err != nil {
+	op.Documents = append(op.Documents, Document(blob))
+	return nil
+}
+
+func (op *OpReply) WriteTo(w io.Writer) error {
+	content := op.toWire()
+	op.MsgHeader.MessageLength = int32(len(content)) + HeaderLen
+
+	if _, err := w.Write(op.MsgHeader.toWire()); err != nil {
+		return err
+	}
+
+	if _, err := w.Write(content); err != nil {
 		return err
 	}
 
@@ -65,30 +95,18 @@ func (op *OpReply) WriteTo(w io.Writer) error {
 }
 
 // toWire converts the MsgHeader to the wire protocol
-func (op *OpReply) toWire(w io.Writer) error {
-	if err := writeInt32(w, op.ResponseFlags); err != nil {
-		return err
-	}
-
-	if err := writeInt64(w, op.CursorID); err != nil {
-		return err
-	}
-
-	if err := writeInt32(w, op.StartingFrom); err != nil {
-		return err
-	}
-
-	if err := writeInt32(w, op.NumberReturned); err != nil {
-		return err
-	}
+func (op *OpReply) toWire() []byte {
+	w := bytes.NewBuffer([]byte{})
+	writeInt32(w, op.ResponseFlags)
+	writeInt64(w, op.CursorID)
+	writeInt32(w, op.StartingFrom)
+	writeInt32(w, op.NumberReturned)
 
 	for _, doc := range op.Documents {
-		if _, err := w.Write(doc); err != nil {
-			return err
-		}
+		w.Write(doc)
 	}
 
-	return nil
+	return w.Bytes()
 }
 
 func (op *OpReply) GetOpCode() OpCode {

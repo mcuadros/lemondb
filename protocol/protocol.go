@@ -68,6 +68,7 @@ const (
 type Message interface {
 	WriteTo(w io.Writer) error
 	GetOpCode() OpCode
+	GetMsgHeader() *MsgHeader
 	String() string
 }
 

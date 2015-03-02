@@ -29,10 +29,7 @@ func (s *ProtocolSuite) TestOpQuery_FromWire(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(q.Map()["qux"], Equals, "foo")
 
-	var w bytes.Buffer
-	err = op.toWire(&w)
-	c.Assert(err, IsNil)
-	c.Assert(hex.EncodeToString(w.Bytes()), Equals, fixtureOpQuery)
+	c.Assert(hex.EncodeToString(op.toWire()), Equals, fixtureOpQuery)
 }
 
 func (s *ProtocolSuite) TestOpQuery_FromWireWithProjection(c *C) {
@@ -45,10 +42,7 @@ func (s *ProtocolSuite) TestOpQuery_FromWireWithProjection(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(q.Map()["qux"], Equals, float64(1))
 
-	var w bytes.Buffer
-	err = op.toWire(&w)
-	c.Assert(err, IsNil)
-	c.Assert(hex.EncodeToString(w.Bytes()), Equals, fixtureOpQueryWithProjection)
+	c.Assert(hex.EncodeToString(op.toWire()), Equals, fixtureOpQueryWithProjection)
 }
 
 func (s *ProtocolSuite) TestOpQuery_String(c *C) {

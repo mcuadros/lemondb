@@ -37,10 +37,8 @@ func (s *ProtocolSuite) TestMsgHeader_toWire(c *C) {
 		OpCode:        OpQueryCode,
 	}
 
-	w := bytes.NewBuffer([]byte{})
-	h.toWire(w)
 	c.Assert(
-		hex.EncodeToString(w.Bytes()),
+		hex.EncodeToString(h.toWire()),
 		Equals,
 		"880000009900000000000000d4070000",
 	)

@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 )
@@ -53,37 +54,41 @@ func ReadOpQuery(h *MsgHeader, r io.Reader) (*OpQuery, error) {
 	return op, nil
 }
 
-// toWire converts the MsgHeader to the wire protocol
-func (op *OpQuery) toWire(w io.Writer) error {
-	if err := writeInt32(w, op.Flags); err != nil {
+func (op *OpQuery) WriteTo(w io.Writer) error {
+	content := op.toWire()
+	op.MsgHeader.MessageLength = int32(len(content)) + HeaderLen
+
+	if _, err := w.Write(op.MsgHeader.toWire()); err != nil {
 		return err
 	}
 
-	if _, err := w.Write(op.FullCollectionName); err != nil {
-		return err
-	}
-
-	if err := writeInt32(w, op.NumberToSkip); err != nil {
-		return err
-	}
-
-	if err := writeInt32(w, op.NumberToReturn); err != nil {
-		return err
-	}
-
-	if _, err := w.Write(op.Query); err != nil {
-		return err
-	}
-
-	if _, err := w.Write(op.ReturnFieldsSelector); err != nil {
+	if _, err := w.Write(content); err != nil {
 		return err
 	}
 
 	return nil
 }
 
+// toWire converts the MsgHeader to the wire protocol
+func (op *OpQuery) toWire() []byte {
+	w := bytes.NewBuffer([]byte{})
+
+	writeInt32(w, op.Flags)
+	w.Write(op.FullCollectionName)
+	writeInt32(w, op.NumberToSkip)
+	writeInt32(w, op.NumberToReturn)
+	w.Write(op.Query)
+	w.Write(op.ReturnFieldsSelector)
+
+	return w.Bytes()
+}
+
 func (op *OpQuery) GetOpCode() OpCode {
 	return OpQueryCode
+}
+
+func (op *OpQuery) GetMsgHeader() *MsgHeader {
+	return op.MsgHeader
 }
 
 // String returns a string representation of the message header.
