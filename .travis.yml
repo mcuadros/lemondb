@@ -1,5 +1,4 @@
 language: go
-env: GO_RUN_LONG_TEST=1
 
 go:
   - 1.3
