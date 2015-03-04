@@ -2,8 +2,9 @@ package protocol
 
 import (
 	"bytes"
-	"gopkg.in/mgo.v2/bson"
 	"io"
+
+	"gopkg.in/mgo.v2/bson"
 )
 
 // MsgHeader is the mongo MsgHeader

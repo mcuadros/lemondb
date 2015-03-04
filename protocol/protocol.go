@@ -75,8 +75,10 @@ type Message interface {
 type Document []byte
 
 func (s Document) String() string {
-	b, _ := s.ToBSON()
-	j, _ := json.Marshal(b.Map())
+	var a interface{}
+	bson.Unmarshal(s, &a)
+	j, _ := json.Marshal(a)
+
 	return string(j)
 }
 
@@ -97,4 +99,16 @@ func (s CSString) String() string {
 	}
 
 	return string(s[:len(s)-1])
+}
+
+type WriteResult struct {
+	Result        int32        `bson:"ok"`
+	InsertedCount int32        `bson:"n"`
+	WriteErrors   []WriteError `bson:"writeErrors"`
+}
+
+type WriteError struct {
+	Index   int32
+	Code    int32
+	Message string `bson:"errmsg"`
 }
